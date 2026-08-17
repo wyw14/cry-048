@@ -1,0 +1,51 @@
+# Binaries
+/bin/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go build/test artifacts
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Storage / runtime data
+/var/
+/data/
+/tmp/
+uploads/
+
+# Dependency caches
+/node_modules/
+/web/node_modules/
+vendor/
+
+# Frontend build outputs
+/web/dist/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Lock files for npm
+package-lock.json.bak
+yarn.lock.bak

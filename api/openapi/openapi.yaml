@@ -1,0 +1,702 @@
+openapi: 3.0.3
+info:
+  title: Design-Review Platform API
+  description: 设计稿协作批注与版本评审平台 - 离线可运行的 HTTP API
+  version: 1.0.0
+  contact:
+    name: cry048-baseline
+servers:
+  - url: http://localhost:8080
+    description: Local development
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      responses:
+        '200':
+          description: OK
+  /readyz:
+    get:
+      summary: Readiness probe
+      responses:
+        '200':
+          description: OK
+  /api/v1/projects:
+    post:
+      summary: 创建项目
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          $ref: '#/components/responses/Error'
+    get:
+      summary: 项目列表（分页、白名单筛选）
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, archived] }
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: sort_by
+          in: query
+          schema: { type: string, enum: [created_at, name, status] }
+        - name: order
+          in: query
+          schema: { type: string, enum: [asc, desc] }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedProjects'
+  /api/v1/projects/{id}:
+    get:
+      summary: 获取项目
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: OK
+        '404':
+          $ref: '#/components/responses/Error'
+  /api/v1/projects/{id}/archive:
+    post:
+      summary: 归档项目
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: OK
+        '409':
+          $ref: '#/components/responses/Error'
+  /api/v1/projects/{projectID}/boards:
+    get:
+      summary: 列出项目下画板
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+  /api/v1/boards:
+    post:
+      summary: 创建画板
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBoardRequest'
+      responses:
+        '201':
+          description: Created
+  /api/v1/boards/{id}:
+    get:
+      summary: 获取画板
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: OK
+  /api/v1/boards/{id}/close:
+    post:
+      summary: 关闭画板
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: OK
+  /api/v1/boards/{boardID}/versions:
+    get:
+      summary: 列出版本
+      parameters:
+        - name: boardID
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+  /api/v1/versions:
+    post:
+      summary: 创建版本
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVersionRequest'
+      responses:
+        '201':
+          description: Created
+  /api/v1/versions/{id}:
+    get:
+      summary: 获取版本
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: OK
+  /api/v1/versions/{id}/publish:
+    post:
+      summary: 发布版本（会替代前一已发布版本）
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: OK
+  /api/v1/members:
+    post:
+      summary: 添加成员
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddMemberRequest'
+      responses:
+        '201':
+          description: Created
+  /api/v1/members/{projectID}:
+    get:
+      summary: 列出项目成员
+      parameters:
+        - name: projectID
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+  /api/v1/members/{id}:
+    delete:
+      summary: 移除成员
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: OK
+  /api/v1/annotations:
+    post:
+      summary: 创建批注
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAnnotationRequest'
+      responses:
+        '201':
+          description: Created
+    get:
+      summary: 批注列表（分页、排序、白名单筛选）
+      parameters:
+        - name: project_id
+          in: query
+          schema: { type: string }
+        - name: board_id
+          in: query
+          schema: { type: string }
+        - name: version_id
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, replied, review, resolved, closed] }
+        - name: priority
+          in: query
+          schema: { type: string, enum: [low, normal, high, critical] }
+        - name: assignee_id
+          in: query
+          schema: { type: string }
+        - name: reporter_id
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: sort_by
+          in: query
+          schema: { type: string, enum: [created_at, updated_at, priority, status, due_at] }
+        - name: order
+          in: query
+          schema: { type: string, enum: [asc, desc] }
+      responses:
+        '200':
+          description: OK
+  /api/v1/annotations/search:
+    get:
+      summary: 全文检索批注
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: OK
+  /api/v1/annotations/my-todos:
+    get:
+      summary: 个人待办
+      responses:
+        '200':
+          description: OK
+  /api/v1/annotations/migrate-anchors:
+    post:
+      summary: 批量迁移锚点
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MigrateAnchorsRequest'
+      responses:
+        '200':
+          description: OK
+  /api/v1/annotations/{id}:
+    get:
+      summary: 获取批注
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: OK
+  /api/v1/annotations/{id}/replies:
+    post:
+      summary: 添加回复（Open→Replied）
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddReplyRequest'
+      responses:
+        '201':
+          description: Created
+  /api/v1/annotations/{id}/assignee:
+    patch:
+      summary: 设置负责人
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetAssigneeRequest'
+      responses:
+        '200':
+          description: OK
+  /api/v1/annotations/{id}/due:
+    patch:
+      summary: 设置截止时间
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetDueRequest'
+      responses:
+        '200':
+          description: OK
+  /api/v1/annotations/{id}/priority:
+    patch:
+      summary: 设置优先级
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPriorityRequest'
+      responses:
+        '200':
+          description: OK
+  /api/v1/annotations/{id}/request-review:
+    post:
+      summary: 提交复核（Replied→Review）
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: OK
+  /api/v1/annotations/{id}/resolve:
+    post:
+      summary: 解决批注（Review→Resolved，需要至少一条回复）
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: OK
+  /api/v1/annotations/{id}/reopen:
+    post:
+      summary: 复核重新打开（Resolved→Open，唯一返回路径）
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: OK
+  /api/v1/annotations/{id}/close:
+    post:
+      summary: 关闭批注
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: OK
+  /api/v1/annotations/{id}/attachments:
+    post:
+      summary: 添加附件（受本地存储校验）
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddAttachmentRequest'
+      responses:
+        '201':
+          description: Created
+  /api/v1/reviews/rounds:
+    post:
+      summary: 创建评审轮次
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoundRequest'
+      responses:
+        '201':
+          description: Created
+  /api/v1/reviews/rounds/{id}:
+    get:
+      summary: 获取评审轮次
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: OK
+  /api/v1/reviews/rounds/board/{boardID}:
+    get:
+      summary: 列出画板的评审轮次
+      parameters:
+        - name: boardID
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+  /api/v1/reviews/rounds/{id}/snapshots:
+    post:
+      summary: 创建冻结快照
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SnapshotRequest'
+      responses:
+        '201':
+          description: Created
+  /api/v1/reviews/rounds/{id}/conclusion:
+    post:
+      summary: 设置汇总结论与发布建议
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConclusionRequest'
+      responses:
+        '200':
+          description: OK
+  /api/v1/reviews/rounds/{id}/close:
+    post:
+      summary: 关闭评审轮次
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: OK
+  /api/v1/notifications:
+    get:
+      summary: 列出通知
+      parameters:
+        - name: unread
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: OK
+  /api/v1/notifications/{id}/read:
+    post:
+      summary: 标记通知已读
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: OK
+  /api/v1/notifications/unread-count:
+    get:
+      summary: 未读通知数量
+      responses:
+        '200':
+          description: OK
+  /api/v1/audit:
+    get:
+      summary: 审计日志查询
+      parameters:
+        - name: actor_id
+          in: query
+          schema: { type: string }
+        - name: entity_type
+          in: query
+          schema: { type: string }
+        - name: entity_id
+          in: query
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: OK
+  /api/v1/export/annotations.csv:
+    get:
+      summary: 本地导出批注清单 CSV
+      responses:
+        '200':
+          description: OK
+          content:
+            text/csv:
+              schema:
+                type: string
+  /api/v1/export/reviews/{id}/minutes.csv:
+    get:
+      summary: 本地导出评审纪要 CSV
+      parameters:
+        - $ref: '#/components/parameters/PathID'
+      responses:
+        '200':
+          description: OK
+          content:
+            text/csv:
+              schema:
+                type: string
+components:
+  parameters:
+    PathID:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+    Error:
+      description: 错误响应
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/APIError'
+  schemas:
+    APIError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, request_id]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            request_id: { type: string }
+            field_errors:
+              type: array
+              items:
+                $ref: '#/components/schemas/FieldError'
+    FieldError:
+      type: object
+      properties:
+        field: { type: string }
+        tag: { type: string }
+        value: { type: string }
+        reason: { type: string }
+    Project:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        status: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        version: { type: integer }
+    PaginatedProjects:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Project' }
+        total: { type: integer }
+        page: { type: integer }
+        page_size: { type: integer }
+        request_id: { type: string }
+    CreateProjectRequest:
+      type: object
+      required: [name]
+      properties:
+        id: { type: string }
+        name: { type: string, maxLength: 128 }
+        description: { type: string }
+    CreateBoardRequest:
+      type: object
+      required: [project_id, name, width, height]
+      properties:
+        id: { type: string }
+        project_id: { type: string }
+        name: { type: string }
+        width: { type: integer, minimum: 1, maximum: 100000 }
+        height: { type: integer, minimum: 1, maximum: 100000 }
+    CreateVersionRequest:
+      type: object
+      required: [board_id, number, preview_key]
+      properties:
+        id: { type: string }
+        board_id: { type: string }
+        number: { type: integer, minimum: 1 }
+        label: { type: string }
+        preview_key: { type: string }
+        notes: { type: string }
+        created_by: { type: string }
+    AddMemberRequest:
+      type: object
+      required: [project_id, user_id, role]
+      properties:
+        id: { type: string }
+        project_id: { type: string }
+        user_id: { type: string }
+        role: { type: string, enum: [owner, editor, viewer] }
+    CreateAnnotationRequest:
+      type: object
+      required: [project_id, board_id, version_id, title]
+      properties:
+        id: { type: string }
+        project_id: { type: string }
+        board_id: { type: string }
+        version_id: { type: string }
+        title: { type: string }
+        body: { type: string }
+        reporter_id: { type: string }
+        point:
+          $ref: '#/components/schemas/Coordinate'
+        region:
+          $ref: '#/components/schemas/Region'
+        priority: { type: string, enum: [low, normal, high, critical] }
+        assignee_id: { type: string }
+        due_at: { type: string, format: date-time }
+    Coordinate:
+      type: object
+      properties:
+        x: { type: number }
+        y: { type: number }
+    Region:
+      type: object
+      properties:
+        x: { type: number }
+        y: { type: number }
+        width: { type: number }
+        height: { type: number }
+    AddReplyRequest:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string }
+    SetAssigneeRequest:
+      type: object
+      required: [assignee_id]
+      properties:
+        assignee_id: { type: string }
+    SetDueRequest:
+      type: object
+      properties:
+        due_at: { type: string, format: date-time, nullable: true }
+    SetPriorityRequest:
+      type: object
+      required: [priority]
+      properties:
+        priority: { type: string, enum: [low, normal, high, critical] }
+    AddAttachmentRequest:
+      type: object
+      required: [filename, media_type, size, storage_key]
+      properties:
+        filename: { type: string }
+        media_type: { type: string }
+        size: { type: integer, format: int64 }
+        storage_key: { type: string }
+    MigrateAnchorsRequest:
+      type: object
+      required: [from_version_id, to_version_id]
+      properties:
+        from_version_id: { type: string }
+        to_version_id: { type: string }
+        reason: { type: string }
+    CreateRoundRequest:
+      type: object
+      required: [project_id, board_id, title]
+      properties:
+        id: { type: string }
+        project_id: { type: string }
+        board_id: { type: string }
+        title: { type: string }
+    SnapshotRequest:
+      type: object
+      required: [project_id, version_id]
+      properties:
+        project_id: { type: string }
+        version_id: { type: string }
+    ConclusionRequest:
+      type: object
+      required: [conclusion, recommendation]
+      properties:
+        conclusion: { type: string }
+        recommendation: { type: string, enum: [approve, approve_with_conditions, reject, defer] }
