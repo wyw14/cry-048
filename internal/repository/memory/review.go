@@ -27,8 +27,7 @@ func NewReviewRepo() *ReviewRepo {
 func (r *ReviewRepo) SaveRound(ctx context.Context, rd *review.Round) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	cp := *rd
-	r.rounds[rd.ID] = &cp
+	r.rounds[rd.ID] = rd.Clone()
 	return nil
 }
 
@@ -39,8 +38,7 @@ func (r *ReviewRepo) GetRound(ctx context.Context, id string) (*review.Round, er
 	if !ok {
 		return nil, review.ErrRoundNotFound
 	}
-	cp := *rd
-	return &cp, nil
+	return rd.Clone(), nil
 }
 
 func (r *ReviewRepo) ListRounds(ctx context.Context, boardID string) ([]*review.Round, error) {
@@ -49,8 +47,7 @@ func (r *ReviewRepo) ListRounds(ctx context.Context, boardID string) ([]*review.
 	out := make([]*review.Round, 0)
 	for _, rd := range r.rounds {
 		if rd.BoardID == boardID {
-			cp := *rd
-			out = append(out, &cp)
+			out = append(out, rd.Clone())
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
@@ -67,22 +64,23 @@ func (r *ReviewRepo) UpdateRound(ctx context.Context, rd *review.Round, expected
 	if existing.Version != expectedVersion {
 		return fmt.Errorf("%w: round version mismatch (existing=%d expected=%d)", annotation.ErrStaleVersion, existing.Version, expectedVersion)
 	}
-	cp := *rd
-	r.rounds[rd.ID] = &cp
+	r.rounds[rd.ID] = rd.Clone()
 	return nil
 }
 
 func (r *ReviewRepo) SaveSnapshot(ctx context.Context, s review.Snapshot) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.snapshots[s.RoundID] = append(r.snapshots[s.RoundID], s)
+	r.snapshots[s.RoundID] = append(r.snapshots[s.RoundID], s.Clone())
 	return nil
 }
 
 func (r *ReviewRepo) ListSnapshots(ctx context.Context, roundID string) ([]review.Snapshot, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := make([]review.Snapshot, len(r.snapshots[roundID]))
-	copy(out, r.snapshots[roundID])
+	out := make([]review.Snapshot, 0, len(r.snapshots[roundID]))
+	for _, snapshot := range r.snapshots[roundID] {
+		out = append(out, snapshot.Clone())
+	}
 	return out, nil
 }

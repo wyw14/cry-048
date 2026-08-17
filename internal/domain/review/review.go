@@ -45,6 +45,18 @@ type Snapshot struct {
 	Counts    map[string]int
 }
 
+// Clone returns a detached value suitable for crossing a repository boundary.
+func (s Snapshot) Clone() Snapshot {
+	cp := s
+	if s.Counts != nil {
+		cp.Counts = make(map[string]int, len(s.Counts))
+		for key, value := range s.Counts {
+			cp.Counts[key] = value
+		}
+	}
+	return cp
+}
+
 // Round is one review cycle.
 type Round struct {
 	ID             string
@@ -61,6 +73,29 @@ type Round struct {
 	UpdatedAt      time.Time
 	Version        int
 	ClosedAt       *time.Time
+}
+
+// Clone returns a deep copy that preserves the frozen state of the round.
+func (r *Round) Clone() *Round {
+	if r == nil {
+		return nil
+	}
+	cp := *r
+	if r.Snapshots != nil {
+		cp.Snapshots = make([]Snapshot, 0, len(r.Snapshots))
+		for _, snapshot := range r.Snapshots {
+			cp.Snapshots = append(cp.Snapshots, snapshot.Clone())
+		}
+	}
+	if r.DecidedAt != nil {
+		decidedAt := *r.DecidedAt
+		cp.DecidedAt = &decidedAt
+	}
+	if r.ClosedAt != nil {
+		closedAt := *r.ClosedAt
+		cp.ClosedAt = &closedAt
+	}
+	return &cp
 }
 
 func NewRound(id, projectID, boardID, title string, now time.Time) (*Round, error) {
