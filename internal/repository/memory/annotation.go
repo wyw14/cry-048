@@ -182,18 +182,80 @@ func (r *AnnotationRepo) Search(ctx context.Context, q string, limit int) ([]*an
 	return out, nil
 }
 
-func (r *AnnotationRepo) ListByAssignee(ctx context.Context, userID string) ([]*annotation.Annotation, error) {
+func (r *AnnotationRepo) ListTodos(ctx context.Context, query application.TodoQuery) ([]*annotation.Annotation, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(query.AssigneeID) == "" {
+		return nil, annotation.ErrAssigneeRequired
+	}
+	if query.Now.IsZero() {
+		return nil, fmt.Errorf("%w: todo reference time", annotation.ErrMustNotBeEmpty)
+	}
+	limit := query.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 100
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	out := make([]*annotation.Annotation, 0)
 	for _, a := range r.annotations {
-		if a.AssigneeID == userID && a.Status != annotation.StatusClosed && a.Status != annotation.StatusResolved {
-			cp := *a
-			out = append(out, &cp)
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
+		if a.AssigneeID != query.AssigneeID || !isActionableTodo(a.Status) {
+			continue
+		}
+		cp := *a
+		out = append(out, &cp)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].UpdatedAt.Before(out[j].UpdatedAt) })
+	sort.Slice(out, func(i, j int) bool {
+		return todoBefore(out[i], out[j], query.Now)
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
 	return out, nil
+}
+
+func isActionableTodo(status annotation.Status) bool {
+	switch status {
+	case annotation.StatusOpen, annotation.StatusReplied, annotation.StatusReview:
+		return true
+	default:
+		return false
+	}
+}
+
+func todoBefore(left, right *annotation.Annotation, now time.Time) bool {
+	leftClass := todoDueClass(left.DueAt, now)
+	rightClass := todoDueClass(right.DueAt, now)
+	if leftClass != rightClass {
+		return leftClass < rightClass
+	}
+	if left.DueAt != nil && right.DueAt != nil && !left.DueAt.Equal(*right.DueAt) {
+		return left.DueAt.Before(*right.DueAt)
+	}
+	leftPriority := priorityRank(string(left.Priority))
+	rightPriority := priorityRank(string(right.Priority))
+	if leftPriority != rightPriority {
+		return leftPriority < rightPriority
+	}
+	if !left.UpdatedAt.Equal(right.UpdatedAt) {
+		return left.UpdatedAt.After(right.UpdatedAt)
+	}
+	return left.ID < right.ID
+}
+
+func todoDueClass(due *time.Time, now time.Time) int {
+	if due == nil {
+		return 2
+	}
+	if !due.After(now) {
+		return 0
+	}
+	return 1
 }
 
 func (r *AnnotationRepo) BulkMigrateAnchors(ctx context.Context, fromVersionID, toVersionID, by, reason string, now time.Time) (int, error) {

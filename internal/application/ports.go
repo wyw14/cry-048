@@ -50,7 +50,7 @@ type AnnotationRepository interface {
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context, filter AnnotationFilter) ([]*annotation.Annotation, int, error)
 	Search(ctx context.Context, q string, limit int) ([]*annotation.Annotation, error)
-	ListByAssignee(ctx context.Context, userID string) ([]*annotation.Annotation, error)
+	ListTodos(ctx context.Context, query TodoQuery) ([]*annotation.Annotation, error)
 	BulkMigrateAnchors(ctx context.Context, fromVersionID, toVersionID, by, reason string, now time.Time) (int, error)
 }
 
@@ -69,6 +69,14 @@ type AnnotationFilter struct {
 	PageSize   int
 	SortBy     string
 	SortDesc   bool
+}
+
+// TodoQuery defines the stable personal-work ordering boundary.
+// Now comes from the application clock so overdue classification is repeatable.
+type TodoQuery struct {
+	AssigneeID string
+	Now        time.Time
+	Limit      int
 }
 
 // ReviewRepository persists review rounds and snapshots.

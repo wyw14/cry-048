@@ -323,7 +323,17 @@ func (s *AnnotationService) Search(ctx context.Context, q string, limit int) ([]
 }
 
 func (s *AnnotationService) ListForUser(ctx context.Context, userID string) ([]*annotation.Annotation, error) {
-	return s.Annotations.ListByAssignee(ctx, userID)
+	if strings.TrimSpace(userID) == "" {
+		return nil, annotation.ErrAssigneeRequired
+	}
+	if s.Clock == nil {
+		return nil, errors.New("annotation service clock is required")
+	}
+	return s.Annotations.ListTodos(ctx, application.TodoQuery{
+		AssigneeID: userID,
+		Now:        s.Clock.Now(),
+		Limit:      100,
+	})
 }
 
 func (s *AnnotationService) AddReply(ctx context.Context, in application.AddReplyInput) (*annotation.Annotation, error) {
