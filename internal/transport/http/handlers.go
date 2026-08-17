@@ -1,6 +1,7 @@
 package http
 
 import (
+	"mime"
 	"net/http"
 	"time"
 
@@ -868,9 +869,7 @@ func (h *Handlers) ExportAnnotations(c *gin.Context) {
 		handleError(c, err)
 		return
 	}
-	c.Header("Content-Type", "text/csv; charset=utf-8")
-	c.Header("Content-Disposition", `attachment; filename="annotations.csv"`)
-	c.String(http.StatusOK, csv)
+	writeCSVDownload(c, "annotations.csv", csv)
 }
 
 func (h *Handlers) ExportReviewMinutes(c *gin.Context) {
@@ -881,7 +880,16 @@ func (h *Handlers) ExportReviewMinutes(c *gin.Context) {
 		handleError(c, err)
 		return
 	}
+	writeCSVDownload(c, "review_minutes.csv", csv)
+}
+
+func writeCSVDownload(c *gin.Context, filename, payload string) {
+	disposition := mime.FormatMediaType("attachment", map[string]string{
+		"filename": filename,
+	})
 	c.Header("Content-Type", "text/csv; charset=utf-8")
-	c.Header("Content-Disposition", `attachment; filename="review_minutes.csv"`)
-	c.String(http.StatusOK, csv)
+	c.Header("Content-Disposition", disposition)
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Cache-Control", "no-store")
+	c.Data(http.StatusOK, "text/csv; charset=utf-8", []byte(payload))
 }

@@ -3,8 +3,10 @@ package service
 
 import (
 	"context"
+	"encoding/csv"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -708,23 +710,44 @@ type ExportService struct {
 }
 
 func (s *ExportService) ExportAnnotationsCSV(ctx context.Context, filter application.AnnotationFilter) (string, error) {
-	list, total, err := s.Annotations.List(ctx, filter)
+	list, _, err := s.Annotations.List(ctx, filter)
 	if err != nil {
 		return "", err
 	}
-	var b strings.Builder
-	b.WriteString("id,title,status,priority,assignee,reporter,version,created_at,due_at,replies,attachments\n")
+	rows := make([][]string, 0, len(list)+1)
+	rows = append(rows, []string{
+		"id",
+		"title",
+		"status",
+		"priority",
+		"assignee",
+		"reporter",
+		"version",
+		"created_at",
+		"due_at",
+		"replies",
+		"attachments",
+	})
 	for _, a := range list {
 		due := ""
 		if a.DueAt != nil {
 			due = a.DueAt.Format(time.RFC3339)
 		}
-		b.WriteString(fmt.Sprintf("%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%d\n",
-			a.ID, csvSafe(a.Title), a.Status, a.Priority, a.AssigneeID, a.ReporterID, a.VersionID,
-			a.CreatedAt.Format(time.RFC3339), due, len(a.Replies), len(a.Attachments)))
+		rows = append(rows, []string{
+			a.ID,
+			a.Title,
+			string(a.Status),
+			string(a.Priority),
+			a.AssigneeID,
+			a.ReporterID,
+			a.VersionID,
+			a.CreatedAt.Format(time.RFC3339),
+			due,
+			strconv.Itoa(len(a.Replies)),
+			strconv.Itoa(len(a.Attachments)),
+		})
 	}
-	_ = total
-	return b.String(), nil
+	return encodeSpreadsheetCSV(rows)
 }
 
 func (s *ExportService) ExportReviewMinutesCSV(ctx context.Context, roundID string) (string, error) {
@@ -732,21 +755,65 @@ func (s *ExportService) ExportReviewMinutesCSV(ctx context.Context, roundID stri
 	if err != nil {
 		return "", err
 	}
-	var b strings.Builder
-	b.WriteString("round_id,title,status,conclusion,recommendation,decided_by,decided_at,snapshots\n")
 	decidedAt := ""
 	if rd.DecidedAt != nil {
 		decidedAt = rd.DecidedAt.Format(time.RFC3339)
 	}
-	b.WriteString(fmt.Sprintf("%s,%s,%s,%s,%s,%s,%s,%d\n",
-		rd.ID, csvSafe(rd.Title), rd.Status, csvSafe(rd.Conclusion), rd.Recommendation,
-		rd.DecidedBy, decidedAt, len(rd.Snapshots)))
-	return b.String(), nil
+	rows := [][]string{
+		{
+			"round_id",
+			"title",
+			"status",
+			"conclusion",
+			"recommendation",
+			"decided_by",
+			"decided_at",
+			"snapshots",
+		},
+		{
+			rd.ID,
+			rd.Title,
+			string(rd.Status),
+			rd.Conclusion,
+			string(rd.Recommendation),
+			rd.DecidedBy,
+			decidedAt,
+			strconv.Itoa(len(rd.Snapshots)),
+		},
+	}
+	return encodeSpreadsheetCSV(rows)
 }
 
-func csvSafe(s string) string {
-	if strings.ContainsAny(s, ",\"\n") {
-		return "\"" + strings.ReplaceAll(s, "\"", "\"\"") + "\""
+func encodeSpreadsheetCSV(rows [][]string) (string, error) {
+	var output strings.Builder
+	writer := csv.NewWriter(&output)
+	writer.UseCRLF = true
+	for _, row := range rows {
+		safeRow := make([]string, len(row))
+		for i, cell := range row {
+			safeRow[i] = spreadsheetSafeCell(cell)
+		}
+		if err := writer.Write(safeRow); err != nil {
+			return "", fmt.Errorf("write CSV row: %w", err)
+		}
 	}
-	return s
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return "", fmt.Errorf("flush CSV export: %w", err)
+	}
+	return output.String(), nil
+}
+
+func spreadsheetSafeCell(value string) string {
+	value = strings.ReplaceAll(value, "\x00", "")
+	trimmed := strings.TrimLeft(value, " \t\r\n")
+	if trimmed == "" {
+		return value
+	}
+	switch trimmed[0] {
+	case '=', '+', '-', '@':
+		return "'" + value
+	default:
+		return value
+	}
 }
