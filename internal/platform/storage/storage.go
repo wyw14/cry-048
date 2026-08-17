@@ -74,34 +74,104 @@ func (s *Store) ValidateUpload(mediaType string, size int64) error {
 
 // Save stores r under a generated key and returns that key.
 func (s *Store) Save(ctx context.Context, filename, mediaType string, size int64, r io.Reader) (string, error) {
+	if err := contextErr(ctx); err != nil {
+		return "", err
+	}
 	if err := s.ValidateUpload(mediaType, size); err != nil {
 		return "", err
 	}
 	if filename == "" {
 		return "", ErrEmptyFilename
 	}
-	if strings.ContainsAny(filename, `/\`) {
+	if !safeFilename(filename) {
 		return "", ErrPathTraversal
 	}
 	id := uuid.NewString()
 	ext := filepath.Ext(filename)
 	key := id + ext
 	full := filepath.Join(s.limits.BaseDir, key)
-	f, err := os.Create(full)
+	tmp, err := os.CreateTemp(s.limits.BaseDir, ".upload-*")
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
-	written, err := io.Copy(f, r)
+	tmpName := tmp.Name()
+	defer func() { _ = tmp.Close(); _ = os.Remove(tmpName) }()
+	written, err := copyWithContext(ctx, tmp, r, size)
 	if err != nil {
-		_ = os.Remove(full)
 		return "", err
 	}
 	if written != size {
-		_ = os.Remove(full)
 		return "", ErrSizeMismatch
 	}
+	if err := tmp.Close(); err != nil {
+		return "", err
+	}
+	if err := contextErr(ctx); err != nil {
+		return "", err
+	}
+	if err := os.Rename(tmpName, full); err != nil {
+		return "", err
+	}
 	return key, nil
+}
+
+func contextErr(ctx context.Context) error {
+	if ctx == nil {
+		return nil
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		return nil
+	}
+}
+
+func safeFilename(filename string) bool {
+	if filename == "" || strings.ContainsAny(filename, `/\\`) {
+		return false
+	}
+	base := filepath.Base(filename)
+	return base == filename && base != "." && base != ".."
+}
+
+func copyWithContext(ctx context.Context, dst io.Writer, src io.Reader, expected int64) (int64, error) {
+	if expected <= 0 {
+		return 0, ErrSizeTooLarge
+	}
+	buf := make([]byte, 32*1024)
+	var written int64
+	for written < expected {
+		if err := contextErr(ctx); err != nil {
+			return written, err
+		}
+		remaining := expected - written
+		chunk := int64(len(buf))
+		if remaining < chunk {
+			chunk = remaining
+		}
+		n, readErr := src.Read(buf[:chunk])
+		if n > 0 {
+			wn, writeErr := dst.Write(buf[:n])
+			written += int64(wn)
+			if writeErr != nil {
+				return written, writeErr
+			}
+			if wn != n {
+				return written, io.ErrShortWrite
+			}
+		}
+		if readErr != nil {
+			if readErr == io.EOF && written == expected {
+				break
+			}
+			return written, readErr
+		}
+		if n == 0 {
+			return written, io.ErrNoProgress
+		}
+	}
+	return written, nil
 }
 
 // Open returns the path on disk for a given key for reading.
