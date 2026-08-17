@@ -52,8 +52,8 @@ func (r *AnnotationRepo) Update(ctx context.Context, a *annotation.Annotation, e
 	if existing.Version != expectedVersion {
 		return fmt.Errorf("%w: existing=%d expected=%d", annotation.ErrStaleVersion, existing.Version, expectedVersion)
 	}
-	cp := *a
 	// Persist the new version (which the domain layer has already bumped on a.Version).
+	cp := *a
 	r.annotations[a.ID] = &cp
 	return nil
 }
@@ -195,6 +195,7 @@ func (r *AnnotationRepo) ListByAssignee(ctx context.Context, userID string) ([]*
 	sort.Slice(out, func(i, j int) bool { return out[i].UpdatedAt.Before(out[j].UpdatedAt) })
 	return out, nil
 }
+
 
 func (r *AnnotationRepo) BulkMigrateAnchors(ctx context.Context, fromVersionID, toVersionID, by, reason string, now time.Time) (int, error) {
 	r.mu.Lock()
