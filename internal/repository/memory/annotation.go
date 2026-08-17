@@ -26,8 +26,7 @@ func NewAnnotationRepo() *AnnotationRepo {
 func (r *AnnotationRepo) Save(ctx context.Context, a *annotation.Annotation) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	cp := *a
-	r.annotations[a.ID] = &cp
+	r.annotations[a.ID] = cloneAnnotation(a)
 	return nil
 }
 
@@ -38,8 +37,7 @@ func (r *AnnotationRepo) Get(ctx context.Context, id string) (*annotation.Annota
 	if !ok {
 		return nil, annotation.ErrAnnotationNotFound
 	}
-	cp := *a
-	return &cp, nil
+	return cloneAnnotation(a), nil
 }
 
 func (r *AnnotationRepo) Update(ctx context.Context, a *annotation.Annotation, expectedVersion int) error {
@@ -53,8 +51,7 @@ func (r *AnnotationRepo) Update(ctx context.Context, a *annotation.Annotation, e
 		return fmt.Errorf("%w: existing=%d expected=%d", annotation.ErrStaleVersion, existing.Version, expectedVersion)
 	}
 	// Persist the new version (which the domain layer has already bumped on a.Version).
-	cp := *a
-	r.annotations[a.ID] = &cp
+	r.annotations[a.ID] = cloneAnnotation(a)
 	return nil
 }
 
@@ -100,8 +97,7 @@ func (r *AnnotationRepo) List(ctx context.Context, filter application.Annotation
 		if !filter.To.IsZero() && a.CreatedAt.After(filter.To) {
 			continue
 		}
-		cp := *a
-		out = append(out, &cp)
+		out = append(out, cloneAnnotation(a))
 	}
 	total := len(out)
 	sortBy := filter.SortBy
@@ -171,8 +167,7 @@ func (r *AnnotationRepo) Search(ctx context.Context, q string, limit int) ([]*an
 	for _, a := range r.annotations {
 		hay := strings.ToLower(a.Title + " " + a.Body)
 		if strings.Contains(hay, needle) {
-			cp := *a
-			out = append(out, &cp)
+			out = append(out, cloneAnnotation(a))
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
@@ -188,14 +183,71 @@ func (r *AnnotationRepo) ListByAssignee(ctx context.Context, userID string) ([]*
 	out := make([]*annotation.Annotation, 0)
 	for _, a := range r.annotations {
 		if a.AssigneeID == userID && a.Status != annotation.StatusClosed && a.Status != annotation.StatusResolved {
-			cp := *a
-			out = append(out, &cp)
+			out = append(out, cloneAnnotation(a))
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].UpdatedAt.Before(out[j].UpdatedAt) })
 	return out, nil
 }
 
+// cloneAnnotation creates an ownership boundary between repository state and callers.
+// The aggregate contains slices and pointer-valued anchors; a struct-only copy would
+// let a caller mutate persisted replies, attachments, or coordinates without Update.
+func cloneAnnotation(src *annotation.Annotation) *annotation.Annotation {
+	if src == nil {
+		return nil
+	}
+	cp := *src
+	cp.Replies = cloneReplies(src.Replies)
+	cp.Attachments = cloneAttachments(src.Attachments)
+	cp.Anchor = cloneAnchor(src.Anchor)
+	if src.DueAt != nil {
+		v := *src.DueAt
+		cp.DueAt = &v
+	}
+	if src.ResolvedAt != nil {
+		v := *src.ResolvedAt
+		cp.ResolvedAt = &v
+	}
+	return &cp
+}
+
+func cloneReplies(src []annotation.Reply) []annotation.Reply {
+	if src == nil {
+		return nil
+	}
+	out := make([]annotation.Reply, len(src))
+	copy(out, src)
+	for i := range out {
+		if src[i].EditedAt != nil {
+			v := *src[i].EditedAt
+			out[i].EditedAt = &v
+		}
+	}
+	return out
+}
+
+func cloneAttachments(src []annotation.Attachment) []annotation.Attachment {
+	if src == nil {
+		return nil
+	}
+	out := make([]annotation.Attachment, len(src))
+	copy(out, src)
+	return out
+}
+
+func cloneAnchor(src canvas.Anchor) canvas.Anchor {
+	out := src
+	if src.Point != nil {
+		v := *src.Point
+		out.Point = &v
+	}
+	if src.Region != nil {
+		v := *src.Region
+		out.Region = &v
+	}
+	return out
+}
 
 func (r *AnnotationRepo) BulkMigrateAnchors(ctx context.Context, fromVersionID, toVersionID, by, reason string, now time.Time) (int, error) {
 	r.mu.Lock()
