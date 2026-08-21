@@ -20,6 +20,10 @@ func NewExportService(queries *QueryService, exports store.ExportStore) *ExportS
 }
 
 func (service *ExportService) ExportAnnotations(ctx context.Context, query AnnotationQuery) (key string, err error) {
+	return service.exportWithLegacyCommit(ctx, query)
+}
+
+func (service *ExportService) exportAtomic(ctx context.Context, query AnnotationQuery) (key string, err error) {
 	staged, err := service.exports.Begin(ctx, "annotations-"+query.VersionID.String())
 	if err != nil {
 		return "", domain.Wrap("begin", "export", query.VersionID.String(), err)
