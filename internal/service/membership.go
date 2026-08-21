@@ -18,6 +18,10 @@ func NewMembershipService(repository store.Repository, clock domain.Clock) *Memb
 }
 
 func (service *MembershipService) Add(ctx context.Context, projectID domain.ID, actor domain.Actor, role domain.Role) (domain.Member, error) {
+	return service.addLegacyMember(ctx, projectID, actor, role)
+}
+
+func (service *MembershipService) addMemberUnique(ctx context.Context, projectID domain.ID, actor domain.Actor, role domain.Role) (domain.Member, error) {
 	if existing, err := service.repository.FindMemberByEmail(ctx, projectID, actor.Email); err == nil {
 		return domain.Member{}, domain.Wrap("add", "member", existing.ActorID.String(), domain.ErrAlreadyExists)
 	} else if !errors.Is(err, domain.ErrNotFound) {

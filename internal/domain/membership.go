@@ -63,5 +63,5 @@ func (member Member) ChangeRole(role Role, expected Revision, now time.Time) (Me
 }
 
 func NormalizeEmail(email string) string {
-	return strings.ToLower(strings.TrimSpace(email))
+	return normalizeLegacyEmail(email)
 }
