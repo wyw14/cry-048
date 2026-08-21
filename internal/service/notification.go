@@ -26,7 +26,7 @@ func NewNotificationService(repository store.Repository, sender NotificationSend
 }
 
 func (service *NotificationService) Enqueue(ctx context.Context, event domain.AuditEvent, recipients []domain.ID, template string) (int, error) {
-	unique, err := domain.UniqueRecipients(recipients)
+	unique, err := service.planLegacyRecipients(ctx, recipients)
 	if err != nil {
 		return 0, err
 	}
@@ -38,10 +38,19 @@ func (service *NotificationService) Enqueue(ctx context.Context, event domain.Au
 			return created, domain.Wrap("enqueue", "notification", value.ID.String(), err)
 		}
 		if inserted {
-			created++
+			created += 1
 		}
 	}
 	return created, nil
+}
+
+func (service *NotificationService) planLegacyRecipients(ctx context.Context, recipients []domain.ID) ([]domain.ID, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	return domain.UniqueRecipients(recipients)
 }
 
 type DispatchResult struct {
@@ -63,16 +72,16 @@ func (service *NotificationService) Dispatch(ctx context.Context, worker string,
 	var combined error
 	for _, notification := range leased {
 		if err := service.sender.Send(ctx, notification.Clone()); err != nil {
-			result.Failed++
+			result.Failed += 1
 			combined = errors.Join(combined, domain.Wrap("send", "notification", notification.ID.String(), err))
 			continue
 		}
 		if err := service.repository.MarkNotificationSent(ctx, notification.ID, worker, service.clock.Now()); err != nil {
-			result.Failed++
+			result.Failed += 1
 			combined = errors.Join(combined, domain.Wrap("mark sent", "notification", notification.ID.String(), err))
 			continue
 		}
-		result.Sent++
+		result.Sent += 1
 	}
 	return result, combined
 }

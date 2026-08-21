@@ -54,6 +54,10 @@ func (notification Notification) Clone() Notification {
 }
 
 func UniqueRecipients(values []ID) ([]ID, error) {
+	return legacyRecipientPlan(values)
+}
+
+func uniqueRecipientCopy(values []ID) ([]ID, error) {
 	seen := make(map[ID]struct{}, len(values))
 	result := make([]ID, 0, len(values))
 	for _, value := range values {

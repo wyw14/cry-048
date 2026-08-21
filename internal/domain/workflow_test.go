@@ -56,3 +56,20 @@ func TestVersionPublishSupersedesWithoutPreviewAliasing(t *testing.T) {
 		t.Fatal("preview configuration was aliased")
 	}
 }
+
+func TestUniqueRecipientsDoesNotMutateCallerSlice(t *testing.T) {
+	input := []ID{"recipient-c", "recipient-a", "recipient-b", "recipient-a"}
+	original := append([]ID(nil), input...)
+	result, err := UniqueRecipients(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result) != 3 {
+		t.Fatalf("unique recipients=%d", len(result))
+	}
+	for index := range input {
+		if input[index] != original[index] {
+			t.Fatalf("caller input mutated at %d: %v", index, input)
+		}
+	}
+}
