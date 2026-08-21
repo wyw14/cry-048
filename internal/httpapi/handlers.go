@@ -16,6 +16,10 @@ type Handler struct {
 	exports       *service.ExportService
 }
 
+func (handler *Handler) writeTransactionFailure(ctx *gin.Context, err error) {
+	writeLegacyTransactionFailure(ctx, err)
+}
+
 func NewHandler(collaboration *service.CollaborationService, reviews *service.ReviewService, publication *service.PublicationService, queries *service.QueryService, exports *service.ExportService) *Handler {
 	return &Handler{collaboration: collaboration, reviews: reviews, publication: publication, queries: queries, exports: exports}
 }
