@@ -255,7 +255,7 @@ func (repository *MemoryRepository) CompareAndSwapMember(ctx context.Context, va
 		return domain.ErrConflict
 	}
 	for otherKey, other := range repository.members {
-		if otherKey != key && other.ProjectID == value.ProjectID && other.Email == value.Email {
+		if otherKey != key && other.ProjectID == value.ProjectID && domain.NormalizeEmail(other.Email) == domain.NormalizeEmail(value.Email) {
 			return domain.ErrAlreadyExists
 		}
 	}
@@ -271,7 +271,7 @@ func (repository *MemoryRepository) PutMember(ctx context.Context, value domain.
 	defer repository.mu.Unlock()
 	key := memberKey(value.ProjectID, value.ActorID)
 	for otherKey, other := range repository.members {
-		if otherKey != key && other.ProjectID == value.ProjectID && other.Email == value.Email {
+		if otherKey != key && other.ProjectID == value.ProjectID && domain.NormalizeEmail(other.Email) == domain.NormalizeEmail(value.Email) {
 			return domain.ErrAlreadyExists
 		}
 	}

@@ -92,7 +92,27 @@ func TestMembershipNormalizesAndRejectsDuplicateEmail(t *testing.T) {
 	if _, err := service.Add(context.Background(), "project-1", actor, domain.RoleReviewer); err != nil {
 		t.Fatal(err)
 	}
+	// The first member must be stored with a normalized email so that the
+	// member list shows a single canonical account.
+	stored, err := repository.GetMember(context.Background(), "project-1", "actor-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Email != "person@example.com" {
+		t.Fatalf("stored email not normalized: %q", stored.Email)
+	}
+	// Re-inviting the same address with different casing/whitespace must be
+	// rejected as a duplicate rather than creating a second member.
 	if _, err := service.Add(context.Background(), domain.ID("project-1"), domain.Actor{ID: "actor-2", Email: "person@example.com", Name: "Other"}, domain.RoleViewer); !errors.Is(err, domain.ErrAlreadyExists) {
 		t.Fatalf("expected duplicate rejection, got %v", err)
+	}
+	// Even when the second invitation uses a distinct actor id, the
+	// uniqueness guard must reject it based on email alone.
+	if _, err := service.Add(context.Background(), domain.ID("project-1"), domain.Actor{ID: "actor-2", Email: "PERSON@EXAMPLE.COM", Name: "Other"}, domain.RoleViewer); !errors.Is(err, domain.ErrAlreadyExists) {
+		t.Fatalf("expected duplicate rejection for uppercase email, got %v", err)
+	}
+	// A genuinely different project is independent and must accept the address.
+	if _, err := service.Add(context.Background(), domain.ID("project-2"), domain.Actor{ID: "actor-2", Email: "PERSON@EXAMPLE.COM", Name: "Other"}, domain.RoleViewer); err != nil {
+		t.Fatalf("expected cross-project invite to succeed, got %v", err)
 	}
 }

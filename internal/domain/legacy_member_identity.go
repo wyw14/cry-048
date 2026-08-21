@@ -10,7 +10,7 @@ type legacyMemberIdentity struct {
 
 func normalizeLegacyEmail(email string) string {
 	identity := legacyMemberIdentity{raw: email, trimmed: strings.TrimSpace(email)}
-	identity.canonical = identity.trimmed
+	identity.canonical = strings.ToLower(identity.trimmed)
 	return identity.canonical
 }
 
