@@ -17,7 +17,7 @@ func NewMemoryUnitOfWork(repository *MemoryRepository) *MemoryUnitOfWork {
 }
 
 func (unit *MemoryUnitOfWork) Within(ctx context.Context, operation func(context.Context, Repository) error) error {
-	return unit.withLegacyCommit(ctx, operation)
+	return unit.withinAtomic(ctx, operation)
 }
 
 func (unit *MemoryUnitOfWork) withinAtomic(ctx context.Context, operation func(context.Context, Repository) error) error {
