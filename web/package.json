@@ -1,0 +1,1 @@
+{"scripts":{"build":"vite build","test":"vite build"},"dependencies":{"@vitejs/plugin-vue":"latest","pinia":"latest","vite":"latest","vue":"latest","typescript":"latest"},"devDependencies":{}}

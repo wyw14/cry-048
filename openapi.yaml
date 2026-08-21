@@ -1,0 +1,30 @@
+openapi: 3.0.3
+info:
+  title: Offline Design Review API
+  version: 1.0.0
+paths:
+  /api/v1/annotations:
+    get:
+      parameters:
+        - {name: version_id, in: query, required: true, schema: {type: string}}
+        - {name: state, in: query, schema: {type: string, enum: [open, review, resolved]}}
+        - {name: sort, in: query, schema: {type: string, enum: [id, state, body]}}
+      responses: {"200": {description: paginated annotations}}
+  /api/v1/annotations/{annotationID}:
+    patch:
+      responses: {"200": {description: edited annotation}, "409": {description: stable conflict}}
+  /api/v1/reviews/{reviewID}/close:
+    post:
+      responses: {"200": {description: closed review}}
+  /api/v1/versions/{versionID}/publish:
+    post:
+      responses: {"200": {description: published version}}
+components:
+  schemas:
+    ErrorEnvelope:
+      required: [code, message, field_errors, request_id]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        field_errors: {type: array}
+        request_id: {type: string}
