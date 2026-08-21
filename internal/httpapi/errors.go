@@ -21,6 +21,10 @@ func writeError(ctx *gin.Context, err error) {
 }
 
 func mapError(err error, requestID string) (int, ErrorEnvelope) {
+	return mapLegacyError(err, requestID)
+}
+
+func mapStableError(err error, requestID string) (int, ErrorEnvelope) {
 	envelope := ErrorEnvelope{Code: "internal_error", Message: "request could not be completed", FieldErrors: []domain.FieldError{}, RequestID: requestID}
 	var validation *domain.ValidationError
 	switch {
