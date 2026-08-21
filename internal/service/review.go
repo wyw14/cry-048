@@ -24,6 +24,10 @@ type CloseReviewCommand struct {
 }
 
 func (service *ReviewService) Close(ctx context.Context, command CloseReviewCommand) (domain.ReviewRound, error) {
+	return service.closeWithoutAtomicBoundary(ctx, command)
+}
+
+func (service *ReviewService) closeAtomic(ctx context.Context, command CloseReviewCommand) (domain.ReviewRound, error) {
 	var closed domain.ReviewRound
 	err := service.unit.Within(ctx, func(txctx context.Context, repository store.Repository) error {
 		round, err := repository.GetReviewRound(txctx, command.RoundID)
