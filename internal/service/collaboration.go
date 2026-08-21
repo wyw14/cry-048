@@ -26,6 +26,10 @@ type EditAnnotationCommand struct {
 }
 
 func (service *CollaborationService) EditAnnotation(ctx context.Context, command EditAnnotationCommand) (domain.Annotation, error) {
+	return service.editThroughLegacyWindow(ctx, command)
+}
+
+func (service *CollaborationService) editAnnotationAtomic(ctx context.Context, command EditAnnotationCommand) (domain.Annotation, error) {
 	annotation, err := service.repository.GetAnnotation(ctx, command.AnnotationID)
 	if err != nil {
 		return domain.Annotation{}, domain.Wrap("load for edit", "annotation", command.AnnotationID.String(), err)
