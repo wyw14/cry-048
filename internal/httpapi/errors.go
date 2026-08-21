@@ -21,7 +21,7 @@ func writeError(ctx *gin.Context, err error) {
 }
 
 func mapError(err error, requestID string) (int, ErrorEnvelope) {
-	return mapLegacyError(err, requestID)
+	return mapStableError(err, requestID)
 }
 
 func mapStableError(err error, requestID string) (int, ErrorEnvelope) {
